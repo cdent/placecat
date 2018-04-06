@@ -1,4 +1,7 @@
 
+_Note: This currently requires version 1.41.0 of gabbi,
+which is in the process of being released._
+
 Placecat is a source of experiments with the OpenStack Placement
 service, a standalone docker container, and some gabbi tests.
 
