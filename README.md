@@ -16,3 +16,40 @@ files are extensively commented to describe what they are about.
 
 A `dockerenv` file is present for starting up the container with the
 right (and simple) configuration.
+
+If the running container is replaced, all data is gone.
+
+Start the container with:
+
+```
+sudo docker run -t -p 127.0.0.1:8080:80 --env-file dockerenv placedock:1.0
+```
+
+Check it is working with:
+
+```
+curl http://localhost:8080/
+```
+
+A response like this indicates it is working:
+
+```json
+{"versions": [{"id": "v1.0", "max_version": "1.21", "min_version": "1.0"}]}
+````
+
+Accomplish the same thing by running:
+
+```
+gabbi-run http://127.0.0.1:8080 -- gabbits/version.yaml
+```
+
+# The Scenarios
+
+_TBD_
+
+# Reminders
+
+* If [placement
+  master](https://git.openstack.org/cgit/openstack/nova) changes and
+  those changes are desired in these tests, the container must be
+  rebuilt.

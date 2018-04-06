@@ -1,0 +1,9 @@
+# A simple confirmation that the placement service is responding and is
+# running the major version (v1.0) that we expect.
+
+tests:
+
+    - name: version check
+      GET: /
+      response_json_paths:
+          $.versions[0].id: v1.0
