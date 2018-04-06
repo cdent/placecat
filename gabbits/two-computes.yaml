@@ -1,0 +1,122 @@
+# Model two very simple compute nodes.
+# 
+# A compute node is a resource provider that provides, from itself,
+# multiple classes of inventory. 
+#
+# We will create two nodes, add inventory, and the filter for resource
+# providers and allocation candidates, eventually writing some allocations.
+#
+# cn1 has 32 VCPU, 1024 DISK_GB, 4096 MEMORY_MB
+# cn2 has 16 VCPU, 2048 DISK_GB, 8192 MEMORY_MB
+#
+
+defaults:
+    # To see what is actually happening request and response wise here, 
+    # uncomment the following line or pass '-v all' to the gabbi-run command.
+    # It's not as insane as it looks.
+    # verbose: True
+    request_headers:
+        openstack-api-version: placement latest
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+
+tests:
+
+- name: create cn1
+  POST: /resource_providers
+  data:
+      uuid: 6b078179-695f-4f8c-ad35-fea85a888342
+      name: cn1
+
+- name: set cn1 inventory
+  PUT: /resource_providers/6b078179-695f-4f8c-ad35-fea85a888342/inventories
+  data:
+      inventories:
+          # let most of the fields default
+          MEMORY_MB:
+              total: 4096
+              reserved: 1024
+          DISK_GB:
+              total: 1024
+              reserved: 256
+          VCPU:
+              total: 32
+              reserved: 2
+      resource_provider_generation: $RESPONSE['generation']
+
+- name: create cn2
+  POST: /resource_providers
+  data:
+      uuid: a33e3488-c487-4435-942f-56b8d48a7fe7
+      name: cn2
+
+- name: set cn2 inventory
+  PUT: /resource_providers/a33e3488-c487-4435-942f-56b8d48a7fe7/inventories
+  data:
+      inventories:
+          # let most of the fields default
+          MEMORY_MB:
+              total: 8192
+              reserved: 1024
+          DISK_GB:
+              total: 2048
+              reserved: 256
+          VCPU:
+              total: 16
+              reserved: 2
+      resource_provider_generation: $RESPONSE['generation']
+
+- name: list a resource provider
+  desc: get just cn2 because cn1 does not have enough disk
+  GET: /resource_providers?resources=VCPU:2,DISK_GB:1025
+  response_json_paths:
+      $.resource_providers.`len`: 1
+      $.resource_providers[0].uuid: a33e3488-c487-4435-942f-56b8d48a7fe7
+
+- name: get allocation candidates for disk heavy instance
+  GET: /allocation_candidates?resources=VCPU:2,DISK_GB:1025,MEMORY_MB:1024
+  response_json_paths:
+      # total less reserved is 1792
+      $.provider_summaries['a33e3488-c487-4435-942f-56b8d48a7fe7'].resources.DISK_GB.capacity: 1792
+
+- name: claim resource via allocations
+  desc: instance uuid is 23f671cb-30d4-4cdc-907b-4229fce72cf8
+  PUT: /allocations/23f671cb-30d4-4cdc-907b-4229fce72cf8
+  # Use the first (and only) allocation request provided above.
+  data:
+      allocations: $RESPONSE['$.allocation_requests[0].allocations']
+      project_id: 9192678c-ca62-40fc-bb8a-1f7f5ec762eb
+      user_id: 9192678c-ca62-40fc-bb8a-1f7f5ec762eb
+  status: 204
+
+- name: get usages for the project id
+  GET: /usages?project_id=9192678c-ca62-40fc-bb8a-1f7f5ec762eb
+  response_json_paths:
+      $.usages:
+          VCPU: 2
+          DISK_GB: 1025
+          MEMORY_MB: 1024
+
+# Cleanup (unwind what we did)
+#
+# Deleting providers will delete inventory if there are no allocations.
+
+- name: delete cn2
+  desc: fails because allocations
+  DELETE: /resource_providers/a33e3488-c487-4435-942f-56b8d48a7fe7
+  status: 409
+  response_strings:
+      - Resource provider has allocations
+
+- name: delete the allocations
+  DELETE: /allocations/23f671cb-30d4-4cdc-907b-4229fce72cf8
+  status: 204
+
+- name: delete cn2
+  DELETE: /resource_providers/a33e3488-c487-4435-942f-56b8d48a7fe7
+  status: 204
+
+- name: delete cn1
+  DELETE: /resource_providers/6b078179-695f-4f8c-ad35-fea85a888342
+  status: 204
