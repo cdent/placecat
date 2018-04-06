@@ -1,0 +1,54 @@
+# Demonstrate that the basic urls we are expecting exist.
+# See ROUTE_DECLARATIONS in nova.api.openstack.placement.handler
+# for the list of valid URLs.
+
+# Set defaults for every request. Access as an admin user
+# and do everything as JSON. Use the latest microversion.
+defaults:
+    request_headers:
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+        openstack-api-version: placement latest
+
+
+tests:
+
+- name: get resource providers
+  GET: /resource_providers
+  response_json_paths:
+      # an empty list of resource providers
+      $.resource_providers.`len`: 0
+
+- name: get resource classes
+  desc: list the standard resource classes
+  GET: /resource_classes
+  response_json_paths:
+      # this confirms that the VCPU class is present
+      $.resource_classes[?(name=="VCPU")].links[0].href: /resource_classes/VCPU
+
+- name: get traits
+  desc: list the standard traits
+  GET: /traits
+  response_json_paths:
+      # confirm a known trait
+      $.traits[?(@ == 'HW_CPU_X86_AVX512BW')]: HW_CPU_X86_AVX512BW
+
+- name: get usage
+  desc: this will 400 because provide no project id
+  GET: /usages
+  status: 400
+
+- name: get allocations
+  desc: this will 405 because allocations only accept POST
+  GET: /allocations
+  status: 405
+  response_headers:
+      allow: POST
+
+- name: get allocation candidates
+  desc: get empty allocation candidates (because there are no providers)
+  GET: /allocation_candidates?resources=VCPU:1
+  response_json_paths:
+      $.provider_summaries.`len`: 0
+      $.allocation_requests.`len`: 0
