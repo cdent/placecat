@@ -1,0 +1,141 @@
+# To look at resource providers from another angle, this YAML file
+# describes a single resource provider, a fridge, containing lots of
+# different classes of inventory (which we must create), and various
+# consumers making meals from it.
+#
+# The goal here is to try to make it clear that the data model is
+# generic and many things can be tracked.
+#
+# We're going to model everything here using one flat resource provider.
+# It would also be possible to model things are nested providers where
+# every container in the fridge (such as a pickle jar) is a provider
+# with its own inventory. This would be useful if there were different
+# types of pickles (dill or sweet for example) in the fridge. We'll do
+# that in a future example.
+#
+# For now we are simply tracking all the stuff in the fridge, none of
+# which has any traits. The pickles may be in different jars but it
+# doesn't matter: It only matters how many total pickles there are.
+#
+# Remember: if you run these interactions with 'verbose: True' or
+# '-v all' on the gabbi-run command you can see the full requests.
+
+
+defaults:
+    # verbose: True
+    request_headers:
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+        openstack-api-version: placement latest
+
+tests:
+
+# First we create the fridge resource provider. We use an explicit
+# uuid because that makes subsequent tests easier to deal with. It's
+# not required: the service will set a uuid if you do not provide one.
+- name: create fridge
+  POST: /resource_providers
+  data:
+      name: fridge
+      uuid: 3ebdcf8d-8089-41f9-8491-f6b8618a0cf1
+
+# Now we need to create a series of custom resource classes. The built
+# in standard resource classes are for computers, not food, so we need
+# to make our own. There is no API for bulk creating custom classes,
+# this is by design. In a "real" use of placement custom classes should 
+# relatively rare.
+#
+# A custom resource class is upper case ASCII and numerals and has a
+# CUSTOM_ prefix. They often (but not always) include a unit.
+- name: create lettuce
+  PUT: /resource_classes/CUSTOM_LETTUCE_LEAF
+  status: 201||204
+- name: create mustard
+  PUT: /resource_classes/CUSTOM_MUSTARD_ML
+  status: 201||204
+- name: create ham
+  PUT: /resource_classes/CUSTOM_HAM_SLICE
+  status: 201||204
+- name: create bread
+  PUT: /resource_classes/CUSTOM_BREAD_SLICE
+  status: 201||204
+- name: cerate pickle
+  PUT: /resource_classes/CUSTOM_PICKLE_SPEAR
+  status: 201||204
+
+# Now we want to set the inventory for all this stuff. We can do this
+# in one request to set the inventory. Since we're talking about food
+# here, the allocation_ratio field does not apply. We cannot oversubscribe
+# food.
+- name: set inventory
+  PUT: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories
+  data:
+      inventories:
+          CUSTOM_LETTUCE_LEAF:
+              total: 25
+              max_unit: 3
+          CUSTOM_MUSTARD_ML:
+              total: 900
+          CUSTOM_HAM_SLICE:
+              total: 75
+          CUSTOM_BREAD_SLICE:
+              total: 50
+              min_unit: 2
+          CUSTOM_PICKLE_SPEAR:
+              total: 25
+      resource_provider_generation: $HISTORY['create fridge'].$RESPONSE['$.generation']
+
+# Check the usage on the fridge. We haven't made any sandwiches yet.
+- name: get usage
+  GET: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/usages
+  response_json_paths:
+      $.usages:
+          CUSTOM_LETTUCE_LEAF: 0
+          CUSTOM_MUSTARD_ML: 0
+          CUSTOM_HAM_SLICE: 0
+          CUSTOM_BREAD_SLICE: 0
+          CUSTOM_PICKLE_SPEAR: 0
+
+# Ask to make one tasty sandwich, hold the mustard. We want to request an
+# allocation candidate, get back that the fridge has what we need, and claim
+# the food. We expect to see one allocation, against the fridge, and it should
+# have four resources.
+- name: request food
+  GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_HAM_SLICE:1,CUSTOM_BREAD_SLICE:2,CUSTOM_PICKLE_SPEAR:3
+  response_json_paths:
+      $.allocation_requests..['3ebdcf8d-8089-41f9-8491-f6b8618a0cf1'].`len`: 1
+      $.allocation_requests..['3ebdcf8d-8089-41f9-8491-f6b8618a0cf1'].resources.`len`: 4
+
+# Now we claim the food. Though we traditionally use uuids for the consumer id
+# nothing enforces that (yet) so we'll call our consumer "sandwich1".
+- name: claim food
+  PUT: /allocations/sandwich1
+  data:
+      allocations: $RESPONSE['$.allocation_requests[0].allocations']
+      user_id: 24384094-9b91-467d-b69a-ccfacaabfbe7
+      project_id: 8d2e1420-019c-41dd-8798-2094d2cc1e52
+  status: 204
+
+# Check the usage on the fridge now. Should have some consumption.
+- name: get usage
+  GET: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/usages
+  response_json_paths:
+      $.usages:
+          CUSTOM_LETTUCE_LEAF: 2
+          CUSTOM_MUSTARD_ML: 0
+          CUSTOM_HAM_SLICE: 1
+          CUSTOM_BREAD_SLICE: 2
+          CUSTOM_PICKLE_SPEAR: 3
+
+# Cleanup by unwinding what we've done. A provider with allocations cannot
+# be deleted, but once there are no allocations, deleting a provider will
+# also delete its inventory.
+
+- name: delete allocations
+  DELETE: /allocations/sandwich1
+  status: 204
+
+- name: delete provider
+  DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1
+  status: 204

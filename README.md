@@ -1,6 +1,5 @@
 
-_Note: This currently requires version 1.41.0 of gabbi,
-which is in the process of being released._
+_Note: This requires version 1.41.0 of gabbi._
 
 Placecat is a source of experiments with the OpenStack Placement
 service, a standalone docker container, and some gabbi tests.
@@ -12,6 +11,9 @@ The container is built from
 [placedock](https://github.com/cdent/placedock). Build that so you
 have a 'placedock:1.0' container around. The README in _placedock_
 can help with that aspect of things.
+
+Or, if you prefer, use an already built container from the [docker
+hub](https://hub.docker.com/r/cdent/placedock/).
 
 The [gabbi](https://github.com/cdent/gabbi) tests use the command
 line runner, `gabbi-run`, to run various YAML-based files. The YAML
@@ -48,7 +50,17 @@ gabbi-run http://127.0.0.1:8080 -- gabbits/version.yaml
 
 # The Scenarios
 
-_TBD_
+The files within `gabbits` represent a few different self-contained
+scenarios for working with placement.
+
+* `version.yaml`: Show the output of the service version discovery
+  document.
+* `base_urls.yaml`: Explore each of the main URLs presented by the
+  service.
+* `two-computes.yaml`: The common usage scenario of placing a
+  workload in a simple cloud.
+* `fridge.yaml`: Making sandwiches with placement and a fridge, just
+  to show what's possible from an entirely different point of view.
 
 # Reminders
 
