@@ -117,6 +117,11 @@ tests:
       project_id: 8d2e1420-019c-41dd-8798-2094d2cc1e52
   status: 204
 
+# Setting allocations will increment the generation for any provider
+# in the allocations.
+- name: get fridge 2
+  GET: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1
+
 # Check the usage on the fridge now. Should have some consumption.
 - name: get usage
   GET: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/usages
@@ -128,14 +133,105 @@ tests:
           CUSTOM_BREAD_SLICE: 2
           CUSTOM_PICKLE_SPEAR: 3
 
-# Cleanup by unwinding what we've done. A provider with allocations cannot
-# be deleted, but once there are no allocations, deleting a provider will
-# also delete its inventory.
+# With things so far. Let's make it more complicated with sharing
+# providers.
+
+# Hold on, we've realized that storing the bread in the fridge makes
+# for a bad sandwich, especially when you've got some nice artisanal
+# bread from the local bakery down the street. What we'd prefer is for
+# there to be a bread box and keeps the bread, and it is associated
+# with the fridge because they are in an aggregate. The bread box
+# becomes a sharing provider.
+
+- name: create breadbox
+  POST: /resource_providers
+  data:
+      name: breadbox
+      uuid: 98b5eda9-695e-44fa-b81f-fbffb4279916
+
+# A sharing provider needs the MISC_SHARES_VIA_AGGREGATE trait. Traits
+# describe qualitative aspects of a resource provider. Note that we need
+# the resource provider generation from the previous request to make sure
+# that nothing else has changed the resource provided since last time.
+- name: add breadbox trait
+  PUT: /resource_providers/98b5eda9-695e-44fa-b81f-fbffb4279916/traits
+  data:
+      resource_provider_generation: $RESPONSE['$.generation']
+      traits:
+          - MISC_SHARES_VIA_AGGREGATE
+
+# Now we want to make the bread box and the fridge members of the same
+# aggregate.
+- name: breadbox in aggregate
+  PUT: /resource_providers/98b5eda9-695e-44fa-b81f-fbffb4279916/aggregates
+  data:
+      resource_provider_generation: $RESPONSE['$.resource_provider_generation']
+      aggregates:
+          - d445d32f-a6a7-43d2-8f93-8fa419b1033e
+
+- name: fridge in aggregate
+  PUT: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/aggregates
+  data:
+      resource_provider_generation: $HISTORY['get fridge 2'].$RESPONSE['$.generation']
+      aggregates:
+          - d445d32f-a6a7-43d2-8f93-8fa419b1033e
+
+# Now we need to move the bread.
+
+# We cannot remove the bread while some of it is use.
+- name: remove bread from fridge
+  DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories/CUSTOM_BREAD_SLICE
+  status: 409
 
 - name: delete allocations
   DELETE: /allocations/sandwich1
   status: 204
 
-- name: delete provider
+- name: remove bread from fridge
+  DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories/CUSTOM_BREAD_SLICE
+  status: 204
+
+- name: create bread in box
+  PUT: /resource_providers/98b5eda9-695e-44fa-b81f-fbffb4279916/inventories
+  data:
+      inventories:
+          CUSTOM_BREAD_SLICE:
+              total: 50
+              min_unit: 2
+      resource_provider_generation: $HISTORY['breadbox in aggregate'].$RESPONSE['$.resource_provider_generation']
+
+# Let's try to make that sandwich again
+- name: request food
+  GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_HAM_SLICE:1,CUSTOM_BREAD_SLICE:2,CUSTOM_PICKLE_SPEAR:3
+  response_json_paths:
+      # There's only one allocation requests
+      $.allocation_requests.`len`: 1
+      # but there are two resource providers in that one allocations block
+      $.allocation_requests[0].allocations.`len`: 2
+      # one of those allocaions is for the breadbox
+      $.allocation_requests[0].allocations['98b5eda9-695e-44fa-b81f-fbffb4279916'].resources.CUSTOM_BREAD_SLICE: 2
+
+# Claim the sandwich ingredients
+- name: make second sandwich
+  PUT: /allocations/sandwich2
+  data:
+      allocations: $RESPONSE['$.allocation_requests[0].allocations']
+      user_id: 24384094-9b91-467d-b69a-ccfacaabfbe7
+      project_id: 8d2e1420-019c-41dd-8798-2094d2cc1e52
+  status: 204
+
+# Cleanup by unwinding what we've done. A provider with allocations cannot
+# be deleted, but once there are no allocations, deleting a provider will
+# also delete its inventory.
+
+- name: remove the sandwich
+  DELETE: /allocations/sandwich2
+  status: 204
+
+- name: delete fridge provider
   DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1
+  status: 204
+
+- name: delete breadbox provider
+  DELETE: /resource_providers/98b5eda9-695e-44fa-b81f-fbffb4279916
   status: 204
