@@ -60,7 +60,7 @@ tests:
 - name: create bread
   PUT: /resource_classes/CUSTOM_BREAD_SLICE
   status: 201||204
-- name: cerate pickle
+- name: create pickle
   PUT: /resource_classes/CUSTOM_PICKLE_SPEAR
   status: 201||204
 

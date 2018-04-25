@@ -1,0 +1,203 @@
+# This is another approach to representing food in the fridge as
+# resource providers. In fridge.yaml we have one main resource provider
+# with many classes of inventory.
+#
+# That's okay as long as you're only keeping one type of, say, pickles,
+# but what if you want sweet and dill?
+#
+# To cover that need we can use nested resource providers to model things.
+# The fridge is still our primary provider. It is where we go to get the
+# food, but how it is divided up within fridge (the topology of the food)
+# is managed by nested providers. This can be with varying degrees of
+# complexity. For some uses cases it could make sense to model different
+# shelves as their own providers, but for now we'll avoid that and instead
+# stick with various jars.
+#
+# A jar of pickles contains a resource class of pickles. To distinguish
+# between sweet and dill, we use a trait, a different one for each jar.
+# Traits on are providers.
+#
+# Remember: if you run these interactions with 'verbose: True' or
+# '-v all' on the gabbi-run command you can see the full requests.
+
+defaults:
+    # verbose: True
+    request_headers:
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+        openstack-api-version: placement latest
+
+tests:
+
+# First we create the fridge resource provider.
+- name: create fridge
+  POST: /resource_providers
+  data:
+      name: nestedfridge
+      uuid: cc052ec8-8176-4805-8be0-122afc0e8319
+
+# Now we need to create a series of custom resource classes. The built
+# in standard resource classes are for computers, not food, so we need
+# to make our own. There is no API for bulk creating custom classes,
+# this is by design. In a "real" use of placement custom classes should 
+# relatively rare.
+#
+# A custom resource class is upper case ASCII and numerals and has a
+# CUSTOM_ prefix. They often (but not always) include a unit.
+- name: create lettuce
+  PUT: /resource_classes/CUSTOM_LETTUCE_LEAF
+  status: 201||204
+- name: create mustard
+  PUT: /resource_classes/CUSTOM_MUSTARD_ML
+  status: 201||204
+- name: create ham
+  PUT: /resource_classes/CUSTOM_HAM_SLICE
+  status: 201||204
+- name: create bread
+  PUT: /resource_classes/CUSTOM_BREAD_SLICE
+  status: 201||204
+- name: create pickle
+  PUT: /resource_classes/CUSTOM_PICKLE_SPEAR
+  status: 201||204
+
+# Now we need to create providers and inventory for these things. Lettuce,
+# for now, is not complicated. There's some lettuce in the fridge. It is
+# all of the same type. We will not track it as a nested provider. Everything
+# else will be. Therefore we need to set the inventory of the fridge so that
+# it has some lettuce.
+- name: set lettuce inventory
+  PUT: /resource_providers/cc052ec8-8176-4805-8be0-122afc0e8319/inventories
+  data:
+      inventories:
+          CUSTOM_LETTUCE_LEAF:
+              total: 25
+              max_unit: 3
+      resource_provider_generation: $HISTORY['create fridge'].$RESPONSE['$.generation']
+
+# We will have two jars of mustard. Dijon and English. We'll model this
+# using traits, so we need to create the traits.
+- name: dijon trait
+  PUT: /traits/CUSTOM_DIJON
+  status: 201||204
+- name: english trait
+  PUT: /traits/CUSTOM_ENGLISH
+  status: 201||204
+
+# Create the mustard jars, set their inventory, apply the relevant trait.
+# We are in the fridge so set that as the parent.
+- name: create dijon mustard
+  POST: /resource_providers
+  data:
+      uuid: 33565754-acc1-4f01-9fec-1819a5329207
+      name: dijon mustard
+      parent_provider_uuid: cc052ec8-8176-4805-8be0-122afc0e8319
+- name: set dijon inventory
+  PUT: /resource_providers/33565754-acc1-4f01-9fec-1819a5329207/inventories
+  data:
+      inventories:
+          CUSTOM_MUSTARD_ML:
+              total: 90
+      resource_provider_generation: $HISTORY['create dijon mustard'].$RESPONSE['$.generation']
+- name: set dijon trait
+  PUT: /resource_providers/33565754-acc1-4f01-9fec-1819a5329207/traits
+  data:
+      traits:
+          - CUSTOM_DIJON
+      resource_provider_generation: $HISTORY['set dijon inventory'].$RESPONSE['$.resource_provider_generation']
+
+- name: create english mustard
+  POST: /resource_providers
+  data:
+      uuid: f203cea5-7a89-4733-ae4b-4a005facdeff
+      name: english mustard
+      parent_provider_uuid: cc052ec8-8176-4805-8be0-122afc0e8319
+- name: set english inventory
+  PUT: /resource_providers/f203cea5-7a89-4733-ae4b-4a005facdeff/inventories
+  data:
+      inventories:
+          CUSTOM_MUSTARD_ML:
+              # this is an english mustard household
+              total: 900
+      resource_provider_generation: $HISTORY['create english mustard'].$RESPONSE['$.generation']
+- name: set english trait
+  PUT: /resource_providers/f203cea5-7a89-4733-ae4b-4a005facdeff/traits
+  data:
+      traits:
+          - CUSTOM_ENGLISH
+      resource_provider_generation: $HISTORY['set english inventory'].$RESPONSE['$.resource_provider_generation']
+
+# TODO: do the same for pickles and ham (as was done for mustard)
+
+# Add the bread as a sharing provider. See fridge.yaml for details on what's
+# going on here.
+
+- name: create breadbox
+  POST: /resource_providers
+  data:
+      name: breadbox
+      uuid: 8059b2f7-b994-46ef-b5cd-56d09ab94dc0
+
+- name: add breadbox trait
+  PUT: /resource_providers/8059b2f7-b994-46ef-b5cd-56d09ab94dc0/traits
+  data:
+      resource_provider_generation: $RESPONSE['$.generation']
+      traits:
+          - MISC_SHARES_VIA_AGGREGATE
+
+- name: breadbox in aggregate
+  PUT: /resource_providers/8059b2f7-b994-46ef-b5cd-56d09ab94dc0/aggregates
+  data:
+      resource_provider_generation: $RESPONSE['$.resource_provider_generation']
+      aggregates:
+          - 88373de6-ed0a-46a8-a5d9-e51e1510230b
+
+- name: fridge in aggregate
+  PUT: /resource_providers/cc052ec8-8176-4805-8be0-122afc0e8319/aggregates
+  data:
+      resource_provider_generation: $HISTORY['set lettuce inventory'].$RESPONSE['$.resource_provider_generation']
+      aggregates:
+          - 88373de6-ed0a-46a8-a5d9-e51e1510230b
+
+# Set bread inventory
+- name: create bread in box
+  PUT: /resource_providers/8059b2f7-b994-46ef-b5cd-56d09ab94dc0/inventories
+  data:
+      inventories:
+          CUSTOM_BREAD_SLICE:
+              total: 50
+              min_unit: 2
+      resource_provider_generation: $HISTORY['breadbox in aggregate'].$RESPONSE['$.resource_provider_generation']
+
+# Let's try to make a sandwich (note we haven't got all the ingredients yet).
+# This doesn't work yet because we don't yet have nested support in allocation
+# candidates.
+- name: request english mustard and lettuce sandwich
+  xfail: True
+  GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_BREAD_SLICE:2,CUSTOM_MUSTARD_ML:1&required=CUSTOM_ENGLISH
+  response_json_paths:
+      $.allocation_requests.`len`: 1
+      
+# Leave out mustard and get something
+- name: request lettuce sandwich
+  GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_BREAD_SLICE:2
+  response_json_paths:
+      $.allocation_requests.`len`: 1
+
+# Clean up by unwinding what we created.
+
+- name: delete breabox
+  DELETE: /resource_providers/8059b2f7-b994-46ef-b5cd-56d09ab94dc0
+  status: 204
+
+- name: delete english mustard
+  DELETE: /resource_providers/f203cea5-7a89-4733-ae4b-4a005facdeff
+  status: 204
+
+- name: delete dijon mustard
+  DELETE: /resource_providers/33565754-acc1-4f01-9fec-1819a5329207
+  status: 204
+
+- name: delete nested fridge
+  DELETE: /resource_providers/cc052ec8-8176-4805-8be0-122afc0e8319
+  status: 204
