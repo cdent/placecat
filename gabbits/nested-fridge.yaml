@@ -184,6 +184,15 @@ tests:
   response_json_paths:
       $.allocation_requests.`len`: 1
 
+# Leave out bread (so no sharing).
+# This doesn't work yet because we don't yet have nested support in allocation
+# candidates. https://review.openstack.org/#/c/565487/
+- name: request gluten free sandwich
+  xfail: True
+  GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_MUSTARD_ML:1&required=CUSTOM_ENGLISH
+  response_json_paths:
+      $.allocation_requests.`len`: 1
+
 # Clean up by unwinding what we created.
 
 - name: delete breabox
