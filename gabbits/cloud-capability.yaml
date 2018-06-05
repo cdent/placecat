@@ -1,0 +1,186 @@
+# Exploring using resource providers to represents clouds with traits
+# representing capabilities.
+#
+# This is a hack. A big hack. But it may be a useful thinking tool.
+#
+# See other files in this directory for more information on what's
+# going on here.
+
+defaults:
+    # verbose: True
+    request_headers:
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+        openstack-api-version: placement latest
+
+# We have four different clouds, each one named by a URL.
+# Each cloud has a set of capabilities that advertise what it can do.
+# These capabilities are totally made up for the sake of this exercise.
+
+tests:
+
+    # Create the traits that represent the capabilities.
+    # loops or bulking would be nice here
+    - name: create traits 1
+      PUT: /traits/CUSTOM_KUBERNETES
+      status: 201||204
+    - name: create traits 2
+      PUT: /traits/CUSTOM_EC2_API
+      status: 201||204
+    - name: create traits 3
+      PUT: /traits/CUSTOM_PAYMENT_CREDIT_CARD
+      status: 201||204
+    - name: create traits 4
+      PUT: /traits/CUSTOM_PAYMENT_BITCOIN
+      status: 201||204
+    - name: create traits 5
+      PUT: /traits/CUSTOM_MULTI_REGION
+      status: 201||204
+    - name: create traits 6
+      PUT: /traits/CUSTOM_CPU_AFFINITY
+      status: 201||204
+    - name: create traits 7
+      PUT: /traits/CUSTOM_SRIOV
+      status: 201||204
+    - name: create traits 7
+      PUT: /traits/CUSTOM_GPU
+      status: 201||204
+
+    # make the four clouds
+    - name: cloudfi.sh
+      POST: /resource_providers
+      data:
+          name: https://cloudfi.sh/
+    - name: cirr.us
+      POST: /resource_providers
+      data:
+          name: https://cirr.us/
+    - name: lotsa.di.sk
+      POST: /resource_providers
+      data:
+          name: https://lotsa.di.sk/
+    - name: deep.edu
+      POST: /resource_providers
+      data:
+          name: https://deep.edu/
+
+    # set traits at cloudfi.sh, pretty standard place
+    - name: cloudfi.sh traits
+      PUT: /resource_providers/$HISTORY['cloudfi.sh'].$RESPONSE['$.uuid']/traits
+      data:
+          resource_provider_generation: $HISTORY['cloudfi.sh'].$RESPONSE['$.generation']
+          traits:
+              - CUSTOM_EC2_API
+              - CUSTOM_PAYMENT_CREDIT_CARD
+              - CUSTOM_MULTI_REGION
+              - CUSTOM_KUBERNETES
+
+    # set traits at cirr.us, now with bitcoins!
+    - name: cirr.us traits
+      PUT: /resource_providers/$HISTORY['cirr.us'].$RESPONSE['$.uuid']/traits
+      data:
+          resource_provider_generation: $HISTORY['cirr.us'].$RESPONSE['$.generation']
+          traits:
+              - CUSTOM_PAYMENT_CREDIT_CARD
+              - CUSTOM_PAYMENT_BITCOIN
+              - CUSTOM_KUBERNETES
+              - CUSTOM_GPU
+
+    # set traits at lotsa.di.sk, they are lotsa is many ways
+    - name: lotsa.di.sk traits
+      PUT: /resource_providers/$HISTORY['lotsa.di.sk'].$RESPONSE['$.uuid']/traits
+      data:
+          resource_provider_generation: $HISTORY['lotsa.di.sk'].$RESPONSE['$.generation']
+          traits:
+              - CUSTOM_EC2_API
+              - CUSTOM_MULTI_REGION
+              - CUSTOM_PAYMENT_CREDIT_CARD
+              - CUSTOM_PAYMENT_BITCOIN
+              - CUSTOM_KUBERNETES
+              - CUSTOM_GPU
+              - CUSTOM_CPU_AFFINITY
+              - CUSTOM_SRIOV
+
+    # set traits at deep.edu, performance but not much else
+    - name: deep.edu traits
+      PUT: /resource_providers/$HISTORY['deep.edu'].$RESPONSE['$.uuid']/traits
+      data:
+          resource_provider_generation: $HISTORY['deep.edu'].$RESPONSE['$.generation']
+          traits:
+              - CUSTOM_GPU
+              - CUSTOM_CPU_AFFINITY
+              - CUSTOM_SRIOV
+
+    # find a cloud where I don't have to pay
+    - name: no payment
+      GET: /resource_providers?required=!CUSTOM_PAYMENT_CREDIT_CARD,!CUSTOM_PAYMENT_BITCOIN
+      response_json_paths:
+          $.resource_providers.`len`: 1
+          $.resource_providers[0].name: https://deep.edu/
+
+    # I need to encode and stream video created by tensorflow in kubernetes
+    # but I don't trust anyone who uses bitcoin.
+    - name: go fast, bro, fail
+      GET: /resource_providers?required=CUSTOM_KUBERNETES,CUSTOM_CPU_AFFINITY,CUSTOM_CPU_AFFINITY,CUSTOM_SRIOV,CUSTOM_GPU,!CUSTOM_PAYMENT_BITCOIN
+      response_json_paths:
+          $.resource_providers.`len`: 0
+    # whoops, only place that has all that uses bitcoin
+    - name: go fast, bro, succeed
+      GET: /resource_providers?required=CUSTOM_KUBERNETES,CUSTOM_CPU_AFFINITY,CUSTOM_CPU_AFFINITY,CUSTOM_SRIOV,CUSTOM_GPU
+      response_json_paths:
+          $.resource_providers.`len`: 1
+          $.resource_providers[0].name: https://lotsa.di.sk/
+
+    # I need kubernetes, and have a credit card, don't care otherwise (because I'm cloud native!)
+    - name: k8s ahoy
+      GET: /resource_providers?required=CUSTOM_KUBERNETES,CUSTOM_PAYMENT_CREDIT_CARD
+      response_json_paths:
+          $.resource_providers.`len`: 3
+          $.resource_providers..name:
+              # this sort may not be stable
+              - https://cloudfi.sh/
+              - https://cirr.us/
+              - https://lotsa.di.sk/
+
+# Cleanup
+    
+    # delete providers
+    - name: delete cloudfi.sh
+      DELETE: /resource_providers/$HISTORY['cloudfi.sh'].$RESPONSE['$.uuid']
+      status: 204
+    - name: delete cirr.us
+      DELETE: /resource_providers/$HISTORY['cirr.us'].$RESPONSE['$.uuid']
+      status: 204
+    - name: delete lotsa.di.sk
+      DELETE: /resource_providers/$HISTORY['lotsa.di.sk'].$RESPONSE['$.uuid']
+      status: 204
+    - name: delete deep.edu
+      DELETE: /resource_providers/$HISTORY['deep.edu'].$RESPONSE['$.uuid']
+      status: 204
+    # delete traits
+    - name: delete traits 1
+      DELETE: /traits/CUSTOM_KUBERNETES
+      status: 204
+    - name: delete traits 2
+      DELETE: /traits/CUSTOM_EC2_API
+      status: 204
+    - name: delete traits 3
+      DELETE: /traits/CUSTOM_PAYMENT_CREDIT_CARD
+      status: 204
+    - name: delete traits 4
+      DELETE: /traits/CUSTOM_PAYMENT_BITCOIN
+      status: 204
+    - name: delete traits 5
+      DELETE: /traits/CUSTOM_MULTI_REGION
+      status: 204
+    - name: delete traits 6
+      DELETE: /traits/CUSTOM_CPU_AFFINITY
+      status: 204
+    - name: delete traits 7
+      DELETE: /traits/CUSTOM_SRIOV
+      status: 204
+    - name: delete traits 7
+      DELETE: /traits/CUSTOM_GPU
+      status: 204
+
