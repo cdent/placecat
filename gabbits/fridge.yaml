@@ -87,7 +87,7 @@ tests:
       resource_provider_generation: $HISTORY['create fridge'].$RESPONSE['$.generation']
 
 # Check the usage on the fridge. We haven't made any sandwiches yet.
-- name: get usage
+- name: get usage before
   GET: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/usages
   response_json_paths:
       $.usages:
@@ -101,7 +101,7 @@ tests:
 # allocation candidate, get back that the fridge has what we need, and claim
 # the food. We expect to see one allocation, against the fridge, and it should
 # have four resources.
-- name: request food
+- name: request food two
   GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_HAM_SLICE:1,CUSTOM_BREAD_SLICE:2,CUSTOM_PICKLE_SPEAR:3
   response_json_paths:
       $.allocation_requests..['3ebdcf8d-8089-41f9-8491-f6b8618a0cf1'].`len`: 1
@@ -115,6 +115,10 @@ tests:
       allocations: $RESPONSE['$.allocation_requests[0].allocations']
       user_id: 24384094-9b91-467d-b69a-ccfacaabfbe7
       project_id: 8d2e1420-019c-41dd-8798-2094d2cc1e52
+      # this will fail on any run that is not the first because
+      # of bug https://bugs.launchpad.net/nova/+bug/1778591
+      # which means there is a generation on pre-existing consumer
+      consumer_generation: null
   status: 204
 
 # Setting allocations will increment the generation for any provider
@@ -123,7 +127,7 @@ tests:
   GET: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1
 
 # Check the usage on the fridge now. Should have some consumption.
-- name: get usage
+- name: get usage after
   GET: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/usages
   response_json_paths:
       $.usages:
@@ -179,15 +183,18 @@ tests:
 # Now we need to move the bread.
 
 # We cannot remove the bread while some of it is use.
-- name: remove bread from fridge
+- name: remove bread from fridge fail
   DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories/CUSTOM_BREAD_SLICE
   status: 409
 
+# Note that this will not reset the generation on sandwich1
+# so if we want to reuse this generation we have issues.
+# See bug: https://bugs.launchpad.net/nova/+bug/1778591
 - name: delete allocations
   DELETE: /allocations/sandwich1
   status: 204
 
-- name: remove bread from fridge
+- name: remove bread from fridge succeed
   DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories/CUSTOM_BREAD_SLICE
   status: 204
 
@@ -201,7 +208,7 @@ tests:
       resource_provider_generation: $HISTORY['breadbox in aggregate'].$RESPONSE['$.resource_provider_generation']
 
 # Let's try to make that sandwich again
-- name: request food
+- name: request food one
   GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_HAM_SLICE:1,CUSTOM_BREAD_SLICE:2,CUSTOM_PICKLE_SPEAR:3
   response_json_paths:
       # There's only one allocation requests
@@ -213,18 +220,21 @@ tests:
 
 # Claim the sandwich ingredients
 - name: make second sandwich
+  desc: until https://bugs.launchpad.net/nova/+bug/1778576 merges this will fail
+  xfail: True
   PUT: /allocations/sandwich2
   data:
       allocations: $RESPONSE['$.allocation_requests[0].allocations']
       user_id: 24384094-9b91-467d-b69a-ccfacaabfbe7
       project_id: 8d2e1420-019c-41dd-8798-2094d2cc1e52
+      consumer_generation: null
   status: 204
 
 # Cleanup by unwinding what we've done. A provider with allocations cannot
 # be deleted, but once there are no allocations, deleting a provider will
 # also delete its inventory.
 
-- name: remove the sandwich
+- name: remove the second sandwich
   DELETE: /allocations/sandwich2
   status: 204
 
