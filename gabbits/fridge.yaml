@@ -19,6 +19,11 @@
 #
 # Remember: if you run these interactions with 'verbose: True' or
 # '-v all' on the gabbi-run command you can see the full requests.
+#
+# NOTE(cdent): These tests will fail the second time they are run
+# until bug https://bugs.launchpad.net/nova/+bug/1779725 and/or
+# https://bugs.launchpad.net/nova/+bug/1778763 is fixed. See
+# https://review.openstack.org/#/c/579921/ and its neighbors.
 
 
 defaults:
@@ -220,8 +225,6 @@ tests:
 
 # Claim the sandwich ingredients
 - name: make second sandwich
-  desc: until https://bugs.launchpad.net/nova/+bug/1778576 merges this will fail
-  xfail: True
   PUT: /allocations/sandwich2
   data:
       allocations: $RESPONSE['$.allocation_requests[0].allocations']

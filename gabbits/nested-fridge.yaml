@@ -169,14 +169,63 @@ tests:
               min_unit: 2
       resource_provider_generation: $HISTORY['breadbox in aggregate'].$RESPONSE['$.resource_provider_generation']
 
-# Let's try to make a sandwich (note we haven't got all the ingredients yet).
-# This doesn't work yet because we don't yet have nested support in allocation
-# candidates.
+# Let's try to make a sandwich. Lettuce is in the top level
+# fridge provider, mustard is a child provider (a jar with a trait)
+# and bread is sharing, via aggregate. In provider summaries the
+# dijon mustard is shown because if there were more than one fridge
+# that had english we might want to weigh multiple results based
+# on the presence of the dijon (even though we don't want to use
+# it).
 - name: request english mustard and lettuce sandwich
-  xfail: True
   GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_BREAD_SLICE:2,CUSTOM_MUSTARD_ML:1&required=CUSTOM_ENGLISH
   response_json_paths:
       $.allocation_requests.`len`: 1
+      $.allocation_requests[0].allocations:
+          '8059b2f7-b994-46ef-b5cd-56d09ab94dc0':
+              resources:
+                  CUSTOM_BREAD_SLICE: 2
+          'cc052ec8-8176-4805-8be0-122afc0e8319':
+              resources:
+                  CUSTOM_LETTUCE_LEAF: 2
+          'f203cea5-7a89-4733-ae4b-4a005facdeff':
+              resources:
+                  CUSTOM_MUSTARD_ML: 1
+      $.provider_summaries:
+          '33565754-acc1-4f01-9fec-1819a5329207':
+              parent_provider_uuid: 'cc052ec8-8176-4805-8be0-122afc0e8319'
+              resources:
+                  CUSTOM_MUSTARD_ML:
+                      capacity: 90
+                      used: 0
+              root_provider_uuid: 'cc052ec8-8176-4805-8be0-122afc0e8319'
+              traits:
+                  - CUSTOM_DIJON
+          '8059b2f7-b994-46ef-b5cd-56d09ab94dc0':
+              parent_provider_uuid: null
+              resources:
+                  CUSTOM_BREAD_SLICE:
+                      capacity: 50
+                      used: 0
+              root_provider_uuid: '8059b2f7-b994-46ef-b5cd-56d09ab94dc0'
+              traits:
+                  - MISC_SHARES_VIA_AGGREGATE
+          'cc052ec8-8176-4805-8be0-122afc0e8319':
+              parent_provider_uuid: null
+              resources:
+                  CUSTOM_LETTUCE_LEAF:
+                      capacity: 25
+                      used: 0
+              root_provider_uuid: 'cc052ec8-8176-4805-8be0-122afc0e8319'
+              traits: []
+          'f203cea5-7a89-4733-ae4b-4a005facdeff':
+              parent_provider_uuid: 'cc052ec8-8176-4805-8be0-122afc0e8319'
+              resources:
+                  CUSTOM_MUSTARD_ML:
+                      capacity: 900
+                      used: 0
+              root_provider_uuid: 'cc052ec8-8176-4805-8be0-122afc0e8319'
+              traits:
+                  - CUSTOM_ENGLISH
       
 # Leave out mustard and get something
 - name: request lettuce sandwich
@@ -185,10 +234,7 @@ tests:
       $.allocation_requests.`len`: 1
 
 # Leave out bread (so no sharing).
-# This doesn't work yet because we don't yet have nested support in allocation
-# candidates. https://review.openstack.org/#/c/565487/
 - name: request gluten free sandwich
-  xfail: True
   GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_MUSTARD_ML:1&required=CUSTOM_ENGLISH
   response_json_paths:
       $.allocation_requests.`len`: 1
