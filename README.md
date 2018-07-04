@@ -1,4 +1,6 @@
 
+[![Build Status](https://travis-ci.org/cdent/placecat.svg?branch=master)](https://travis-ci.org/cdent/placecat)
+
 _Note: This requires version 1.41.0 of gabbi._
 
 Placecat is a source of experiments with the OpenStack Placement
