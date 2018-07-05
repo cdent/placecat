@@ -226,6 +226,13 @@ tests:
               root_provider_uuid: 'cc052ec8-8176-4805-8be0-122afc0e8319'
               traits:
                   - CUSTOM_ENGLISH
+
+# If we don't care about which mustard we are using we should get
+# a choice of two sandwiches (two allocations requests)
+- name: request any mustard and lettuce sandwich
+  GET: /allocation_candidates?resources=CUSTOM_LETTUCE_LEAF:2,CUSTOM_BREAD_SLICE:2,CUSTOM_MUSTARD_ML:1
+  response_json_paths:
+      $.allocation_requests.`len`: 2
       
 # Leave out mustard and get something
 - name: request lettuce sandwich

@@ -34,8 +34,10 @@ If the running container is replaced, all data is gone.
 Start the container with:
 
 ```
-sudo docker run -t -p 127.0.0.1:8080:80 --env-file dockerenv cdent/placedock
+docker run -t -d -p 127.0.0.1:8080:80 --env-file dockerenv cdent/placedock
 ```
+
+(You may need to use `sudo`, depending on your environment.)
 
 Check it is working with:
 
