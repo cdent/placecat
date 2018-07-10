@@ -19,11 +19,6 @@
 #
 # Remember: if you run these interactions with 'verbose: True' or
 # '-v all' on the gabbi-run command you can see the full requests.
-#
-# NOTE(cdent): These tests will fail the second time they are run
-# until bug https://bugs.launchpad.net/nova/+bug/1779725 and/or
-# https://bugs.launchpad.net/nova/+bug/1778763 is fixed. See
-# https://review.openstack.org/#/c/579921/ and its neighbors.
 
 
 defaults:
@@ -120,9 +115,6 @@ tests:
       allocations: $RESPONSE['$.allocation_requests[0].allocations']
       user_id: 24384094-9b91-467d-b69a-ccfacaabfbe7
       project_id: 8d2e1420-019c-41dd-8798-2094d2cc1e52
-      # this will fail on any run that is not the first because
-      # of bug https://bugs.launchpad.net/nova/+bug/1778591
-      # which means there is a generation on pre-existing consumer
       consumer_generation: null
   status: 204
 
@@ -192,9 +184,6 @@ tests:
   DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories/CUSTOM_BREAD_SLICE
   status: 409
 
-# Note that this will not reset the generation on sandwich1
-# so if we want to reuse this generation we have issues.
-# See bug: https://bugs.launchpad.net/nova/+bug/1778591
 - name: delete allocations
   DELETE: /allocations/sandwich1
   status: 204
@@ -223,9 +212,6 @@ tests:
       # one of those allocaions is for the breadbox
       $.allocation_requests[0].allocations['98b5eda9-695e-44fa-b81f-fbffb4279916'].resources.CUSTOM_BREAD_SLICE: 2
 
-# Claim the sandwich ingredients
-# Because of bug https://bugs.launchpad.net/nova/+bug/1778576 this
-# cannot currently pass.
 - name: make second sandwich
   PUT: /allocations/sandwich2
   data:

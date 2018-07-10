@@ -88,10 +88,6 @@ tests:
       allocations: $RESPONSE['$.allocation_requests[0].allocations']
       project_id: 9192678c-ca62-40fc-bb8a-1f7f5ec762eb
       user_id: 9192678c-ca62-40fc-bb8a-1f7f5ec762eb
-      # This will only work on a fresh database (that is, the first run
-      # on a new container because of bug
-      # https://bugs.launchpad.net/nova/+bug/1778591 and/or
-      # https://bugs.launchpad.net/nova/+bug/1778763
       consumer_generation: null
   status: 204
 
