@@ -1,0 +1,76 @@
+# This gabbit demonstrates that changing project and user id via
+# PUT /allocations does the expected thing.
+
+defaults:
+    # verbose: True
+    request_headers:
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+        openstack-api-version: placement latest
+
+tests:
+
+# create a simple resource provider with minimal inventory then
+# put some allocations to it and then try again with a different
+# project and user.
+
+- name: create fridge
+  POST: /resource_providers
+  data:
+      name: fridge
+      uuid: 3ebdcf8d-8089-41f9-8491-f6b8618a0cf1
+
+- name: set inventory
+  PUT: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories
+  data:
+      inventories:
+          VCPU:
+              total: 8
+      resource_provider_generation: 0
+
+- name: set allocations 1
+  PUT: /allocations/c08f4dad-8616-4cd7-a961-b353c15d8bfb
+  data:
+      allocations:
+          "3ebdcf8d-8089-41f9-8491-f6b8618a0cf1":
+              resources:
+                  VCPU: 1
+      consumer_generation: null
+      user_id: 74b5bdac-c720-4296-b8ef-cd1c24cd1656
+      project_id: 74bfe9c2-10df-4e4e-8b7f-10c200529200
+  status: 204
+
+- name: set allocations 2
+  desc: change user and project
+  PUT: /allocations/c08f4dad-8616-4cd7-a961-b353c15d8bfb
+  data:
+      allocations:
+          "3ebdcf8d-8089-41f9-8491-f6b8618a0cf1":
+              resources:
+                  VCPU: 1
+      consumer_generation: 1
+      user_id: 9a904b8d-0fd6-4396-8a9e-a5cc296a30e7
+      project_id: d9900c38-3515-4369-a333-e330cd30ca68
+  status: 204
+
+- name: get allocations
+  GET: /allocations/c08f4dad-8616-4cd7-a961-b353c15d8bfb
+  response_json_paths:
+      $.consumer_generation: 2
+      $.user_id: 9a904b8d-0fd6-4396-8a9e-a5cc296a30e7 
+      $.project_id: d9900c38-3515-4369-a333-e330cd30ca68
+
+# unwind
+
+- name: delete allocations
+  DELETE: /allocations/c08f4dad-8616-4cd7-a961-b353c15d8bfb
+  status: 204
+
+- name: delete inventory
+  DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1/inventories
+  status: 204
+
+- name: delete rp
+  DELETE: /resource_providers/3ebdcf8d-8089-41f9-8491-f6b8618a0cf1
+  status: 204
