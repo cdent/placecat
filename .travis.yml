@@ -4,7 +4,7 @@ services:
     - docker
 before_install:
     - docker pull cdent/placedock
-    - docker run -t -d -p 127.0.0.1:80:80 -e "DB_SYNC=True" -e "AUTH_STRATEGY=noauth2" cdent/placedock
+    - docker run -t -d -p 127.0.0.1:80:80 -e "DB_SYNC=True" -e "OS_API__AUTH_STRATEGY=noauth2" cdent/placedock
     - pip install gabbi
 script:
     # Run gabbi twice as there are issues that only show up when that's done.

@@ -3,4 +3,4 @@
 DB_SYNC=True
 DB_CLEAN=True
 # use simple auth (each request gets a header of "x-auth-token: admin")
-AUTH_STRATEGY=noauth2
+OS_API__AUTH_STRATEGY=noauth2
