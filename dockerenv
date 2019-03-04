@@ -1,6 +1,5 @@
 # use an internal database
 # create tables
-DB_SYNC=True
-DB_CLEAN=True
+OS_PLACEMENT_DATABASE__SYNC_ON_STARTUP=True
 # use simple auth (each request gets a header of "x-auth-token: admin")
 OS_API__AUTH_STRATEGY=noauth2
