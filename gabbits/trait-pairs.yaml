@@ -1,0 +1,156 @@
+# Explore how traits behave in nested situations.
+#
+# Set defaults for every request. Access as an admin user
+# and do everything as JSON. Use the latest microversion.
+defaults:
+    verbose: True
+    request_headers:
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+        openstack-api-version: placement latest
+
+tests:
+
+- name: create root 1
+  POST: /resource_providers
+  data:
+      name: root 1
+      uuid: 0f64f155-a807-462c-8dd2-531bf523e2df
+
+- name: create root 2
+  POST: /resource_providers
+  data:
+      name: root 2
+      uuid: 60c5d73a-1eef-438d-8b2a-b4ebd2a32023
+
+- name: create child 1
+  POST: /resource_providers
+  data:
+      name: child 1
+      uuid: 4d755be6-3271-4b10-8917-3eda5f63ff14
+      parent_provider_uuid: 0f64f155-a807-462c-8dd2-531bf523e2df
+
+- name: create child 2
+  POST: /resource_providers
+  data:
+      name: child 2
+      uuid: 1710af21-a431-4771-849b-cd7e8cf4178d
+      parent_provider_uuid: 0f64f155-a807-462c-8dd2-531bf523e2df
+
+- name: inventory root 1
+  PUT: /resource_providers/0f64f155-a807-462c-8dd2-531bf523e2df/inventories
+  data:
+      resource_provider_generation: 0
+      inventories:
+          MEMORY_MB:
+              total: 4096
+          VCPU:
+              total: 24
+
+- name: inventory child 1
+  PUT: /resource_providers/4d755be6-3271-4b10-8917-3eda5f63ff14/inventories
+  data:
+      resource_provider_generation: 0
+      inventories:
+          DISK_GB:
+              total: 4096
+
+- name: inventory root 2
+  PUT: /resource_providers/60c5d73a-1eef-438d-8b2a-b4ebd2a32023/inventories
+  data:
+      resource_provider_generation: 0
+      inventories:
+          MEMORY_MB:
+              total: 4096
+          VCPU:
+              total: 24
+          DISK_GB:
+              total: 9000
+
+- name: trait child 1
+  PUT: /resource_providers/4d755be6-3271-4b10-8917-3eda5f63ff14/traits
+  data:
+      resource_provider_generation: 1
+      traits:
+          - STORAGE_DISK_SSD
+
+# Asking for a trait which is on a child that doesn't contribute, no results
+- name: get via top trait without rc
+  GET: /allocation_candidates?resources=VCPU:1;required=STORAGE_DISK_SSD
+  response_json_paths:
+      $.allocation_requests.`len`: 0
+
+# If that child contributes, then its traits count even if not numbered.
+- name: get via top trait with rc not on numbered
+  GET: /allocation_candidates?resources=VCPU:1,DISK_GB:1;required=STORAGE_DISK_SSD
+  response_json_paths:
+      $.allocation_requests.`len`: 1
+
+# !!HERE!! matters. This behavior might be different from what people
+# except. In this case, if we have said that a resource class we want
+# comes from a numbered resource, then its traits are not in the "global"
+# trait scope of the un-numbered required. Compare the query in this
+# next test with the ones immediately before and after.
+#
+# Is this what we expect.
+
+# When a resources1, its traits must be paired
+- name: get via top trait with rc on numbered
+  GET: /allocation_candidates?resources=VCPU:1;required=STORAGE_DISK_SSD;resources1=DISK_GB:1
+  response_json_paths:
+      $.allocation_requests.`len`: 0
+
+# Both numbered does what we expect.
+- name: get via numbered trait with rc on numbered
+  GET: /allocation_candidates?resources=VCPU:1;required1=STORAGE_DISK_SSD;resources1=DISK_GB:1
+  response_json_paths:
+      $.allocation_requests.`len`: 1
+
+# This will not pass query string validation
+- name: get via numbered required but not numbered resources
+  GET: /allocation_candidates?resources=VCPU:1,DISK_GB:1;required1=STORAGE_DISK_SSD
+  status: 400
+  response_json_paths:
+      $.errors[0].detail: /orphaned traits/
+
+# No required, but numbered resources, no isolate
+- name: get numbered resources no required
+  GET: /allocation_candidates?resources=VCPU:1;resources1=DISK_GB:1
+  response_json_paths:
+      $.allocation_requests.`len`: 2
+
+# This is still two because isolate only applies to numbered resources
+- name: get numbered resources no required isolate
+  GET: /allocation_candidates?resources=VCPU:1;resources1=DISK_GB:1;group_policy=isolate
+  response_json_paths:
+      $.allocation_requests.`len`: 2
+
+# No required gets two (both roots)
+- name: get no trait
+  GET: /allocation_candidates?resources=VCPU:1,DISK_GB:5
+  response_json_paths:
+      $.allocation_requests.`len`: 2
+        
+- name: requesting missing trait gets zero
+  GET: /allocation_candidates?resources=VCPU:1,DISK_GB:5;required=STORAGE_DISK_HDD
+  response_json_paths:
+      $.allocation_requests.`len`: 0
+
+# clean up
+
+- name: delete child 2
+  DELETE: /resource_providers/1710af21-a431-4771-849b-cd7e8cf4178d
+  status: 204
+
+- name: delete child 1
+  DELETE: /resource_providers/4d755be6-3271-4b10-8917-3eda5f63ff14
+  status: 204
+
+- name: delete root 1
+  DELETE: /resource_providers/0f64f155-a807-462c-8dd2-531bf523e2df
+  status: 204
+
+- name: delete root 2
+  DELETE: /resource_providers/60c5d73a-1eef-438d-8b2a-b4ebd2a32023
+  status: 204
