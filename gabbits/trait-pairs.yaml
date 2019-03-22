@@ -106,6 +106,15 @@ tests:
   response_json_paths:
       $.allocation_requests.`len`: 1
 
+# Also !!HERE!!. Numbered for both resources, but required not.
+# We can't do it because required has to be paired with something.
+- name: get via unnumbered required but numbered resources
+  GET: /allocation_candidates?resources1=VCPU:1&resources2=DISK_GB:1;required=STORAGE_DISK_SSD
+  status: 400
+  response_json_paths:
+      $.errors[0].detail: /orphaned traits/
+      $.errors[0].detail: /traits parameters must be associated with resources/
+
 # This will not pass query string validation
 - name: get via numbered required but not numbered resources
   GET: /allocation_candidates?resources=VCPU:1,DISK_GB:1;required1=STORAGE_DISK_SSD
