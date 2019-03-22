@@ -3,7 +3,6 @@
 # Set defaults for every request. Access as an admin user
 # and do everything as JSON. Use the latest microversion.
 defaults:
-    verbose: True
     request_headers:
         accept: application/json
         content-type: application/json
