@@ -7,7 +7,9 @@ defaults:
         accept: application/json
         content-type: application/json
         x-auth-token: admin
-        openstack-api-version: placement latest
+        # With 1.36 the errors from and handling of resourceless request
+        # groups change.
+        openstack-api-version: placement 1.35
 
 tests:
 
