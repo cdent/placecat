@@ -187,14 +187,14 @@ tests:
       $.allocation_requests..['2b2da4ec-3f2c-4204-8f6f-d29369fd8a55']..CUSTOM_FPGA: 1
       # 0_0
       $.allocation_requests..['7d0eacd8-28f1-4fd3-9109-6f66e07f406d']..CUSTOM_FPGA: 1
-      # the partner of fpga0_0 is numa0. We get this by looking at it's parent.
+      # the partner of fpga0_0 is numa0. We get this by looking at its parent.
       # If 7d0eacd8-28f1-4fd3-9109-6f66e07f406d (fpga0_0) wasn't in the same
       # allocations objects with edeb974b-14f2-45bc-b915-803098936c61 (numa0)
       # this would error
       $.allocation_requests..['7d0eacd8-28f1-4fd3-9109-6f66e07f406d'].`parent`.['edeb974b-14f2-45bc-b915-803098936c61'].resources:
           MEMORY_MB: 256
           VCPU: 1
-      # the partner of fpga1_1 is numa1. We get this by looking at it's parent
+      # the partner of fpga1_1 is numa1. We get this by looking at its parent
       $.allocation_requests..['31ec8259-251c-499e-9e4b-9dd03c16b527'].`parent`.['d0eb602a-dc15-49f3-9b15-85450dc558dc'].resources:
           MEMORY_MB: 256
           VCPU: 1
