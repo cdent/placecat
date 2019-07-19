@@ -1,0 +1,253 @@
+# Explore the use of the same_subtree query parameter to
+# GET /allocation_candidates to experiment with nested topology.
+#
+# Based on the information in
+# https://docs.openstack.org/placement/latest/usage/provider-tree.html#filtering-by-same-subtree
+#
+# We create a topology as described in that document and then make
+# some queries against it. Because we are working against and existing
+# document, the fridge concept is set aside for the time being and create
+# a compute node with two numa nodes, with disk on the compute node, vcpu
+# and memory on the numa nodes, with associated accelerators.
+#
+# Remember: if you run these interactions with 'verbose: True' or
+# '-v all' on the gabbi-run command you can see the full requests.
+
+defaults:
+    # verbose: True
+    request_headers:
+        accept: application/json
+        content-type: application/json
+        x-auth-token: admin
+        openstack-api-version: placement 1.36
+
+tests:
+
+# Create two custom traits
+- name: create custom type 1
+  PUT: /traits/CUSTOM_TYPE1
+  status: 201
+- name: create custom type 2
+  PUT: /traits/CUSTOM_TYPE2
+  status: 201
+
+# TODO(cdent): When os-resource-classes 0.15 is available use FPGA
+- name: create custom class
+  PUT: /resource_classes/CUSTOM_FPGA
+  status: 201
+
+- name: create compute node
+  POST: /resource_providers
+  data:
+      name: cn1
+      uuid: 571e3c9a-777d-481c-b6e3-4031ea1a534b
+
+- name: compute node inventories
+  PUT: /resource_providers/571e3c9a-777d-481c-b6e3-4031ea1a534b/inventories
+  data:
+      inventories:
+          DISK_GB:
+              total: 1024
+      resource_provider_generation: 0
+
+- name: create numa 0
+  POST: /resource_providers
+  data:
+      name: numa0
+      uuid: edeb974b-14f2-45bc-b915-803098936c61
+      parent_provider_uuid: 571e3c9a-777d-481c-b6e3-4031ea1a534b
+
+- name: numa 0 inventories
+  PUT: /resource_providers/edeb974b-14f2-45bc-b915-803098936c61/inventories
+  data:
+      inventories:
+          VCPU:
+              total: 4
+          MEMORY_MB:
+              total: 2048
+      resource_provider_generation: 0
+
+- name: numa 0 traits
+  PUT: /resource_providers/edeb974b-14f2-45bc-b915-803098936c61/traits
+  data:
+      traits:
+          - HW_NUMA_ROOT
+      resource_provider_generation: 1
+
+- name: create numa 1
+  POST: /resource_providers
+  data:
+      name: numa1
+      uuid: d0eb602a-dc15-49f3-9b15-85450dc558dc
+      parent_provider_uuid: 571e3c9a-777d-481c-b6e3-4031ea1a534b
+
+- name: numa 1 inventories
+  PUT: /resource_providers/d0eb602a-dc15-49f3-9b15-85450dc558dc/inventories
+  data:
+      inventories:
+          VCPU:
+              total: 4
+          MEMORY_MB:
+              total: 2048
+      resource_provider_generation: 0
+
+- name: numa 1 traits
+  PUT: /resource_providers/d0eb602a-dc15-49f3-9b15-85450dc558dc/traits
+  data:
+      traits:
+          - HW_NUMA_ROOT
+      resource_provider_generation: 1
+
+- name: create FPGA0_0
+  POST: /resource_providers
+  data:
+      name: fpga0_0
+      uuid: 7d0eacd8-28f1-4fd3-9109-6f66e07f406d
+      parent_provider_uuid: edeb974b-14f2-45bc-b915-803098936c61
+
+- name: create FPGA1_0
+  POST: /resource_providers
+  data:
+      name: fpga1_0
+      uuid: 2b2da4ec-3f2c-4204-8f6f-d29369fd8a55
+      parent_provider_uuid: d0eb602a-dc15-49f3-9b15-85450dc558dc
+
+- name: create FPGA1_1
+  POST: /resource_providers
+  data:
+      name: fpga1_1
+      uuid: 31ec8259-251c-499e-9e4b-9dd03c16b527
+      parent_provider_uuid: d0eb602a-dc15-49f3-9b15-85450dc558dc
+
+- name: fpga0_0 inventories
+  PUT: /resource_providers/7d0eacd8-28f1-4fd3-9109-6f66e07f406d/inventories
+  data:
+      inventories:
+          CUSTOM_FPGA:
+              total: 1
+      resource_provider_generation: 0
+
+- name: fpga0_0 traits
+  PUT: /resource_providers/7d0eacd8-28f1-4fd3-9109-6f66e07f406d/traits
+  data:
+      traits:
+          - CUSTOM_TYPE1
+      resource_provider_generation: 1
+
+- name: fpga1_0 inventories
+  PUT: /resource_providers/2b2da4ec-3f2c-4204-8f6f-d29369fd8a55/inventories
+  data:
+      inventories:
+          CUSTOM_FPGA:
+              total: 1
+      resource_provider_generation: 0
+
+- name: fpga1_0 traits
+  PUT: /resource_providers/2b2da4ec-3f2c-4204-8f6f-d29369fd8a55/traits
+  data:
+      traits:
+          - CUSTOM_TYPE1
+      resource_provider_generation: 1
+
+- name: fpga1_1 inventories
+  PUT: /resource_providers/31ec8259-251c-499e-9e4b-9dd03c16b527/inventories
+  data:
+      inventories:
+          CUSTOM_FPGA:
+              total: 1
+      resource_provider_generation: 0
+
+- name: fpga1_1 traits
+  PUT: /resource_providers/31ec8259-251c-499e-9e4b-9dd03c16b527/traits
+  data:
+      traits:
+          - CUSTOM_TYPE2
+      resource_provider_generation: 1
+
+# We have our topology, let's make queries
+
+- name: get fpga under same compute
+  desc: the accel and compute groups need to share a tree
+  GET: /allocation_candidates
+  query_parameters:
+      resources_COMPUTE: VCPU:1,MEMORY_MB:256
+      resources_ACCEL: CUSTOM_FPGA:1
+      group_policy: none
+      same_subtree: _COMPUTE,_ACCEL
+  response_json_paths:
+      $.allocation_requests.`len`: 3
+      # three entries for one CUSTOM_FPGA
+      $.allocation_requests..CUSTOM_FPGA: [1, 1, 1]
+      # three entries for one VCPU 
+      $.allocation_requests..VCPU: [1, 1, 1]
+      # expected uuids providing custom fgpa
+      # 1_1
+      $.allocation_requests..['31ec8259-251c-499e-9e4b-9dd03c16b527']..CUSTOM_FPGA: 1
+      # 1_0
+      $.allocation_requests..['2b2da4ec-3f2c-4204-8f6f-d29369fd8a55']..CUSTOM_FPGA: 1
+      # 0_0
+      $.allocation_requests..['7d0eacd8-28f1-4fd3-9109-6f66e07f406d']..CUSTOM_FPGA: 1
+      # the partner of fpga0_0 is numa0. We get this by looking at its parent.
+      # If 7d0eacd8-28f1-4fd3-9109-6f66e07f406d (fpga0_0) wasn't in the same
+      # allocations objects with edeb974b-14f2-45bc-b915-803098936c61 (numa0)
+      # this would error
+      $.allocation_requests..['7d0eacd8-28f1-4fd3-9109-6f66e07f406d'].`parent`.['edeb974b-14f2-45bc-b915-803098936c61'].resources:
+          MEMORY_MB: 256
+          VCPU: 1
+      # the partner of fpga1_1 is numa1. We get this by looking at its parent
+      $.allocation_requests..['31ec8259-251c-499e-9e4b-9dd03c16b527'].`parent`.['d0eb602a-dc15-49f3-9b15-85450dc558dc'].resources:
+          MEMORY_MB: 256
+          VCPU: 1
+ 
+- name: get fpga under same compute with different traits
+  GET: /allocation_candidates
+  query_parameters:
+      required_NUMA: HW_NUMA_ROOT
+      resources_ACCEL1: CUSTOM_FPGA:1
+      required_ACCEL1: CUSTOM_TYPE1
+      resources_ACCEL2: CUSTOM_FPGA:1
+      required_ACCEL2: CUSTOM_TYPE2
+      group_policy: none
+      same_subtree: _NUMA,_ACCEL1,_ACCEL2
+  response_json_paths:
+      # we expect just one allocation request
+      $.allocation_requests.`len`: 1
+      # from three providers providing resources
+      $.allocation_requests[0].mappings.`len`: 3
+      # with 6 total providers in the tree
+      $.provider_summaries.`len`: 6
+
+#### Cleanup ####
+
+- name: delete fpga1_1
+  DELETE: /resource_providers/31ec8259-251c-499e-9e4b-9dd03c16b527
+  status: 204
+- name: delete fpga1_0
+  DELETE: /resource_providers/2b2da4ec-3f2c-4204-8f6f-d29369fd8a55
+  status: 204
+- name: delete fpga0_0
+  DELETE: /resource_providers/7d0eacd8-28f1-4fd3-9109-6f66e07f406d
+  status: 204
+
+- name: delete numa 1
+  DELETE: /resource_providers/d0eb602a-dc15-49f3-9b15-85450dc558dc
+  status: 204
+- name: delete numa 0
+  DELETE: /resource_providers/edeb974b-14f2-45bc-b915-803098936c61
+  status: 204
+
+- name: delete compute node
+  DELETE: /resource_providers/571e3c9a-777d-481c-b6e3-4031ea1a534b
+  status: 204
+
+- name: delete custom class
+  DELETE: /resource_classes/CUSTOM_FPGA
+  status: 204
+
+# Delete traits
+- name: delete custom type 2
+  DELETE: /traits/CUSTOM_TYPE2
+  status: 204
+- name: delete custom type 1
+  DELETE: /traits/CUSTOM_TYPE1
+  status: 204
